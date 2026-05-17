@@ -1,4 +1,5 @@
 import os
+import requests
 
 from dotenv import load_dotenv
 from github import Github
@@ -12,11 +13,12 @@ class GitHubClient:
     def __init__(self):
 
         token = os.getenv("GITHUB_TOKEN")
+        self.is_authenticated = bool(token)
 
-        if not token:
-            raise ValueError("GITHUB_TOKEN is not set.")
-
-        self.github = Github(token)
+        if token:
+            self.github = Github(token)
+        else:
+            self.github = Github()
 
     def get_repository_name(self, repository_url: str):
 
@@ -71,6 +73,31 @@ class GitHubClient:
         pdf_files = []
 
         contents = repo.get_contents("")
+        directories = []
+
+        while contents:
+
+            file_content = contents.pop(0)
+
+            if file_content.type == "dir":
+
+                directories.append(file_content.path)
+
+            elif file_content.path.lower().endswith(".pdf"):
+
+                pdf_files.append({
+                    "name": file_content.name,
+                    "path": file_content.path,
+                    "download_url": file_content.download_url
+                })
+
+        if pdf_files or not self.is_authenticated:
+            return pdf_files
+
+        for directory in directories:
+            contents.extend(
+                repo.get_contents(directory)
+            )
 
         while contents:
 
@@ -91,3 +118,11 @@ class GitHubClient:
                 })
 
         return pdf_files
+
+    def download_file(self, download_url: str):
+
+        response = requests.get(download_url)
+
+        response.raise_for_status()
+
+        return response.content
