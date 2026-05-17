@@ -1,0 +1,7 @@
+streamlit
+boto3
+requests
+pandas
+plotly
+python-dotenv
+pdfplumber

@@ -1,7 +1,12 @@
+import json
+
 import streamlit as st
+
+from skill_parser import SkillParser
 
 
 def main():
+
     st.set_page_config(
         page_title="Skill Sheet AI Analyzer",
         page_icon="📊",
@@ -9,52 +14,93 @@ def main():
     )
 
     st.title("Skill Sheet AI Analyzer")
-    st.caption("スキルシートとGitHub情報をもとに、職務経験をAIで分析・可視化するツール")
 
-    st.header("1. 分析対象入力")
+    st.caption(
+        "GitHub Repository をAIで分析し、"
+        "スキル・経験・強みを可視化するツール"
+    )
+
+    st.header("Repository Input")
 
     repository_url = st.text_input(
         "GitHub Repository URL",
-        placeholder="https://github.com/example/skill-sheet-ai-analyzer",
+        placeholder="https://github.com/example/project"
     )
 
-    skill_sheet_text = st.text_area(
-        "スキルシート内容",
-        placeholder="ここにスキルシートや職務経歴の内容を貼り付けてください。",
-        height=250,
-    )
+    if st.button("Analyze Repository"):
 
-    uploaded_file = st.file_uploader(
-        "スキルシートファイル",
-        type=["txt", "md", "csv"],
-    )
-
-    st.header("2. 分析実行")
-
-    if st.button("分析を開始する"):
-        if not repository_url and not skill_sheet_text and uploaded_file is None:
-            st.warning("GitHub URL、スキルシート内容、またはファイルを指定してください。")
+        if not repository_url:
+            st.warning("Repository URL を入力してください。")
             return
 
-        st.success("分析リクエストを受け付けました。")
+        with st.spinner("Analyzing repository..."):
 
-        st.subheader("入力内容確認")
+            try:
 
-        if repository_url:
-            st.write("GitHub Repository URL")
-            st.code(repository_url)
+                parser = SkillParser()
 
-        if skill_sheet_text:
-            st.write("スキルシート入力")
-            st.text(skill_sheet_text[:1000])
+                result = parser.analyze_repository(
+                    repository_url
+                )
 
-        if uploaded_file is not None:
-            st.write("アップロードファイル")
-            st.write(uploaded_file.name)
+                result_json = json.loads(result)
 
-    st.header("3. 分析結果")
+                st.success("Analysis completed.")
 
-    st.info("現時点では画面骨格のみ。次のステップでGitHub取得処理とBedrock分析処理を接続する。")
+                st.header("Analysis Result")
+
+                st.subheader("Profile Summary")
+
+                st.write(
+                    result_json.get(
+                        "profile_summary",
+                        ""
+                    )
+                )
+
+                st.subheader("Technical Categories")
+
+                st.json(
+                    result_json.get(
+                        "technical_categories",
+                        []
+                    )
+                )
+
+                st.subheader("Strengths")
+
+                st.json(
+                    result_json.get(
+                        "strengths",
+                        []
+                    )
+                )
+
+                st.subheader("Interview Points")
+
+                st.json(
+                    result_json.get(
+                        "interview_points",
+                        []
+                    )
+                )
+
+                st.subheader("Recommended Questions")
+
+                st.json(
+                    result_json.get(
+                        "recommended_questions",
+                        []
+                    )
+                )
+
+                st.subheader("Full JSON")
+
+                st.json(result_json)
+
+            except Exception as error:
+
+                st.error(f"Error: {error}")
 
 
 if __name__ == "__main__":
