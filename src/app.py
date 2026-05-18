@@ -209,7 +209,7 @@ def main():
 
     st.title("Skill Sheet AI Analyzer")
     st.caption(
-        "GitHub上のスキルシートPDFを取得し、"
+        "GitHub上またはアップロードされたスキルシートPDFを取得し、"
         "Amazon Bedrockで職務経験・技術領域・強みを分析するツール"
     )
 
@@ -220,18 +220,30 @@ def main():
         value="https://github.com/thippi555/kato_skill_2026.git"
     )
 
+    uploaded_file = st.file_uploader(
+        "Skill Sheet PDF",
+        type=["pdf"],
+    )
+
     if st.button("Analyze Skill Sheet"):
 
-        if not repository_url:
-            st.warning("Repository URL を入力してください。")
+        if not repository_url and uploaded_file is None:
+            st.warning("Repository URL または PDF を指定してください。")
             return
 
-        with st.spinner("Analyzing GitHub skill sheet PDF..."):
+        with st.spinner("Analyzing skill sheet PDF..."):
 
             try:
                 parser = SkillParser()
 
-                result = parser.analyze_repository(repository_url)
+                if uploaded_file is not None:
+                    result = parser.analyze_pdf_bytes(
+                        uploaded_file.name,
+                        uploaded_file.getvalue(),
+                        repository_url,
+                    )
+                else:
+                    result = parser.analyze_repository(repository_url)
 
                 result_json = parse_json_safely(result)
 
