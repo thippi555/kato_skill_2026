@@ -47,6 +47,12 @@ class SkillParser:
             repository_url
         )
 
+        if not pdf_files:
+            raise ValueError(
+                "GitHub上にPDFファイルが見つかりませんでした。"
+                "PDFをpushするか、画面からPDFをアップロードしてください。"
+            )
+
         for pdf_file in pdf_files:
 
             pdf_binary = self.github_client.download_file(
@@ -58,10 +64,37 @@ class SkillParser:
             )
 
             pdf_text += f"\n# PDF File: {pdf_file['path']}\n"
+            if not extracted_text.strip():
+                continue
+
             pdf_text += extracted_text
             pdf_text += "\n"
 
         return pdf_text
+
+    def build_analysis_input(
+        self,
+        repository_info,
+        readme: str,
+        pdf_text: str,
+    ):
+        prompt = self.load_prompt()
+
+        return f"""
+{prompt}
+
+# Repository Information
+
+{json.dumps(repository_info, ensure_ascii=False, indent=2)}
+
+# README
+
+{readme}
+
+# Skill Sheet PDF Text
+
+{pdf_text}
+"""
 
     def analyze_repository(self, repository_url: str):
 
@@ -80,23 +113,58 @@ class SkillParser:
             repository_url
         )
 
-        prompt = self.load_prompt()
+        if not pdf_text.strip():
+            raise ValueError("PDFからテキストを抽出できませんでした。")
 
-        analysis_input = f"""
-{prompt}
+        analysis_input = self.build_analysis_input(
+            repository_info,
+            readme,
+            pdf_text,
+        )
 
-# Repository Information
+        result = self.bedrock_client.analyze_text(
+            analysis_input
+        )
 
-{json.dumps(repository_info, ensure_ascii=False, indent=2)}
+        return self.clean_json_text(result)
 
-# README
+    def analyze_pdf_bytes(
+        self,
+        file_name: str,
+        pdf_binary: bytes,
+        repository_url: str = "",
+    ):
+        repository_info = {}
+        readme = ""
 
-{readme}
+        if repository_url:
+            try:
+                repository_info = self.github_client.get_repository_info(
+                    repository_url
+                )
+                readme = self.github_client.get_readme(
+                    repository_url
+                )
+            except Exception:
+                repository_info = {
+                    "url": repository_url,
+                    "note": "GitHub情報を取得できませんでした。",
+                }
 
-# Skill Sheet PDF Text
+        extracted_text = self.file_loader.load_pdf_text_from_bytes(
+            pdf_binary
+        )
 
-{pdf_text}
-"""
+        if not extracted_text.strip():
+            raise ValueError("アップロードされたPDFからテキストを抽出できませんでした。")
+
+        pdf_text = f"\n# PDF File: {file_name}\n{extracted_text}\n"
+
+        analysis_input = self.build_analysis_input(
+            repository_info,
+            readme,
+            pdf_text,
+        )
 
         result = self.bedrock_client.analyze_text(
             analysis_input
